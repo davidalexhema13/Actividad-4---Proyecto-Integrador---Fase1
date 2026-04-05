@@ -8,14 +8,17 @@ def cargar_datos():
     Carga los datos en bruto desde el archivo CSV principal.
     Aprovecha caché de Streamlit para no releer del disco a cada recarga.
     """
-    file_path = "Presuntos_Suicidios._Colombia,_2015_a_2024._Cifras_definitivas_20260309.csv"
-    if os.path.exists(file_path):
-        try:
-            return pd.read_csv(file_path, low_memory=False)
-        except Exception as e:
-            st.error(f"Error cargando los datos: {str(e)}")
-            return None
-    return None
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    file_path = os.path.join(base_dir, "datos.csv")
+    
+    if not os.path.exists(file_path):
+        st.error(f"❌ CSV no encontrado en: {file_path}")
+        return None
+    try:
+        return pd.read_csv(file_path, low_memory=False)
+    except Exception as e:
+        st.error(f"Error cargando los datos: {str(e)}")
+        return None
 
 @st.cache_data(show_spinner=False)
 def pipeline_validacion(df):
@@ -33,7 +36,7 @@ def pipeline_validacion(df):
     
     # 2. Casteo de Tipos Estrictos
     if "Año del hecho" in df_clean.columns:
-        df_clean["Año del hecho"] = pd.to_numeric(df_clean["Año del hecho"], errors="coerce")
+        df_clean["Año del hecho"] = pd.to_numeric(df_clean["Año del hecho"], errors="coerce").astype("Int64")
         
     # 3. Normalización de textos para homogeneizar datos (ej. quitar espacios espurios)
     obj_cols = df_clean.select_dtypes(include='object').columns

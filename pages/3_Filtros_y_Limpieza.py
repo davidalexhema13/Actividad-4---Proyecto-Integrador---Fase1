@@ -14,14 +14,35 @@ st.markdown("""
 Configura un entorno de búsqueda granular. A diferencia del modo reactivo, aquí debes presionar **Aplicar Filtros** para salvaguardar el rendimiento debido al volumen de datos. El sistema se encarga internamente de normalizar y pulir las entradas (pipeline de validación).
 """)
 
+# 🔄 BOTÓN PARA FORZAR RECARGA
+if st.button("🔄 Recargar datos (forzar pipeline)"):
+    st.session_state.pop("df_raw", None)
+    st.session_state.pop("df_filtrado", None)
+    st.rerun()
+
 # INICIALIZACIÓN DE ESTADOS
 if "filtros_config" not in st.session_state:
     st.session_state.filtros_config = {}
 
-if "df_raw" not in st.session_state:
-    with st.spinner("Cargando y validando Pipeline base..."):
+# 🔥 CARGA CON DEBUG (SIN CACHE ROTO)
+with st.spinner("Cargando y validando Pipeline base..."):
+    try:
         df = cargar_datos()
-        st.session_state.df_raw = pipeline_validacion(df)
+        st.write("🔍 DEBUG carga:", df.shape if df is not None else "None")
+
+        df_validado = pipeline_validacion(df)
+        st.write("🔍 DEBUG pipeline:", df_validado.shape if df_validado is not None else "None")
+
+        if df_validado is not None:
+            st.write("🔍 Columnas detectadas:", df_validado.columns.tolist())
+            st.write("🔍 Preview datos:")
+            st.dataframe(df_validado.head(5))
+
+        st.session_state.df_raw = df_validado
+
+    except Exception as e:
+        st.error(f"💥 ERROR REAL EN PIPELINE: {e}")
+        st.stop()
 
 df_clean = st.session_state.df_raw
 
@@ -46,13 +67,11 @@ if df_clean is not None and not df_clean.empty:
         with col1:
             st.markdown("#### ⏳ Dimensión Espacio-Temporal")
             
-            # Años
             min_y = int(df_clean["Año del hecho"].min())
             max_y = int(df_clean["Año del hecho"].max())
             def_y = st.session_state.filtros_config.get("rango_anios", (min_y, max_y))
             rango_anos = st.slider("Rango de Años:", min_y, max_y, def_y)
             
-            # Meses
             if "Mes del hecho" in df_clean.columns:
                 meses_uni = df_clean["Mes del hecho"].dropna().unique().tolist()
                 def_m = st.session_state.filtros_config.get("meses", [])
@@ -66,7 +85,7 @@ if df_clean is not None and not df_clean.empty:
             
             if "Departamento del hecho DANE" in df_clean.columns:
                 deptos_uni = sorted(df_clean["Departamento del hecho DANE"].dropna().unique().tolist())
-                # Si existe, extraemos previo de sesion
+                
                 def_d_index = 0
                 if "departamento" in st.session_state.filtros_config and st.session_state.filtros_config["departamento"] in deptos_uni:
                     def_d_index = deptos_uni.index(st.session_state.filtros_config["departamento"]) + 1
@@ -79,7 +98,6 @@ if df_clean is not None and not df_clean.empty:
                     muni_filtrados = df_clean[df_clean["Departamento del hecho DANE"] == sel_depto]
                     muni_uni = sorted(muni_filtrados["Municipio del hecho DANE"].dropna().unique().tolist())
                     
-                    # Intersecar con presets previos para no quebrar UI si cambian departamento
                     def_mun = [m for m in st.session_state.filtros_config.get("municipios", []) if m in muni_uni]
                     sel_muni = st.multiselect("Municipios (relacionado):", muni_uni, default=def_mun)
             else:
@@ -116,13 +134,11 @@ if df_clean is not None and not df_clean.empty:
         with cmd_col2:
             clear_btn = st.form_submit_button("🗑️ Limpiar Configuración", use_container_width=True)
             
-    # Proceso en Backend de la forma
     if clear_btn:
         resetear_filtros()
         st.rerun()
         
     if submit_btn:
-        # 1. Empaquetar estado fuente de verdad
         nuevo_estado = {
             "rango_anios": rango_anos,
             "meses": sel_meses,
@@ -134,13 +150,11 @@ if df_clean is not None and not df_clean.empty:
         }
         st.session_state.filtros_config = nuevo_estado
         
-        # 2. Ejecutar la función matemática abstracta pura
         with st.spinner("⏳ Vectorizando y acotando el Dataset basado en presets de sesión..."):
             df_res = aplicar_filtros_puros(df_clean, nuevo_estado)
             st.session_state['df_filtrado'] = df_res
             st.success("Configuración aplicada exitosamente.")
 
-    # Muestra Final
     if "df_filtrado" in st.session_state and st.session_state.df_filtrado is not None:
          df_f = st.session_state.df_filtrado
          if df_f.empty:

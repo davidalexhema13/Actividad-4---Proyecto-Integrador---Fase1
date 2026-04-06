@@ -12,13 +12,12 @@ st.set_page_config(page_title="Filtros y Limpieza", page_icon="⚙️", layout="
 
 st.title("⚙️ Módulo 3: Interfaz de Filtros y Consolidación de Datos")
 st.markdown("""
-Configura un entorno de búsqueda granular. Ajusta los filtros y presiona **Aplicar Filtros** para ver los cambios reflejados en el dashboard. El sistema se encarga internamente de normalizar y pulir las entradas (pipeline de validación).
+Configura un entorno de búsqueda granular. Los gráficos se actualizan automáticamente al mover los filtros. El sistema se encarga internamente de normalizar y pulir las entradas (pipeline de validación).
 """)
 
 # 🔄 BOTÓN PARA FORZAR RECARGA
 if st.button("🔄 Recargar datos (forzar pipeline)"):
     st.session_state.pop("df_raw", None)
-    st.session_state.pop("filtros_aplicados", None)
     st.rerun()
 
 # 🔥 CARGA CON PIPELINE
@@ -40,7 +39,7 @@ if df_clean is None or df_clean.empty:
 st.info(f"💾 Se ha cargado el modelo base pre-validado con **{df_clean.shape[0]}** registros íntegros.")
 
 # -----------------------------
-# CONSTRUCCIÓN DE FILTROS
+# FILTROS REACTIVOS (SIN FORM)
 # -----------------------------
 st.subheader("Arquitectura de Filtros")
 
@@ -59,12 +58,6 @@ with col1:
         sel_meses = st.multiselect("Meses de Registro:", meses_uni, default=[])
     else:
         sel_meses = []
-
-    if "Dia del hecho" in df_clean.columns:
-        dias_uni = df_clean["Dia del hecho"].dropna().unique().tolist()
-        sel_dias = st.multiselect("Día de la Semana:", dias_uni, default=[])
-    else:
-        sel_dias = []
 
 # COL 2: Geografía Relacional
 with col2:
@@ -92,7 +85,6 @@ with col3:
         sex_uni = sorted(df_clean["Sexo de la victima"].dropna().unique().tolist())
         sel_sexo = st.multiselect("Género/Sexo:", sex_uni, default=sex_uni)
     else:
-        sex_uni = []
         sel_sexo = []
 
     if "Grupo de Edad Quinquenal " in df_clean.columns:
@@ -107,74 +99,23 @@ with col3:
     else:
         sel_mec = []
 
-# --- FILTROS SOCIOCULTURALES ---
-st.markdown("#### 🔍 Dimensión Sociocultural")
-col4, col5, col6 = st.columns(3)
-
-with col4:
-    if "Estado Civil" in df_clean.columns:
-        ec_uni = sorted(df_clean["Estado Civil"].dropna().unique().tolist())
-        sel_estado_civil = st.multiselect("Estado Civil:", ec_uni, default=[])
-    else:
-        sel_estado_civil = []
-
-with col5:
-    if "Escolaridad" in df_clean.columns:
-        esc_uni = sorted(df_clean["Escolaridad"].dropna().unique().tolist())
-        sel_escolaridad = st.multiselect("Escolaridad:", esc_uni, default=[])
-    else:
-        sel_escolaridad = []
-
-with col6:
-    if "Ancestro Racial" in df_clean.columns:
-        anc_uni = sorted(df_clean["Ancestro Racial"].dropna().unique().tolist())
-        sel_ancestro = st.multiselect("Ancestro Racial:", anc_uni, default=[])
-    else:
-        sel_ancestro = []
-
-st.divider()
-
-# Botones de acción — primer par (arriba de los filtros)
-btn_col1, btn_col2 = st.columns([1, 5])
-with btn_col1:
-    aplicar_top = st.button("✅ Aplicar Filtros", type="primary", key="aplicar_top", use_container_width=True)
-with btn_col2:
-    if st.button("🗑️ Limpiar Filtros", use_container_width=True):
-        st.session_state.pop("filtros_aplicados", None)
-        st.rerun()
+# Botón limpiar filtros
+if st.button("🗑️ Limpiar Filtros"):
+    st.rerun()
 
 # -----------------------------
-# LÓGICA DE FILTROS CON ESTADO
+# APLICAR FILTROS EN TIEMPO REAL
 # -----------------------------
-if "filtros_aplicados" not in st.session_state:
-    st.session_state.filtros_aplicados = {
-        "rango_anios": (min_y, max_y),
-        "meses": [], "dias": [],
-        "departamento": None, "municipios": [],
-        "sexos": sex_uni,
-        "grupos_edad": [], "mecanismos": [],
-        "estado_civil": [], "escolaridad": [], "ancestro_racial": []
-    }
+filtros_estado = {
+    "rango_anios": rango_anos,
+    "meses": sel_meses,
+    "departamento": sel_depto if sel_depto != "(Todos)" else None,
+    "municipios": sel_muni,
+    "sexos": sel_sexo,
+    "grupos_edad": sel_edad,
+    "mecanismos": sel_mec
+}
 
-def construir_filtros():
-    return {
-        "rango_anios": rango_anos,
-        "meses": sel_meses,
-        "dias": sel_dias,
-        "departamento": sel_depto if sel_depto != "(Todos)" else None,
-        "municipios": sel_muni,
-        "sexos": sel_sexo,
-        "grupos_edad": sel_edad,
-        "mecanismos": sel_mec,
-        "estado_civil": sel_estado_civil,
-        "escolaridad": sel_escolaridad,
-        "ancestro_racial": sel_ancestro
-    }
-
-if aplicar_top:
-    st.session_state.filtros_aplicados = construir_filtros()
-
-filtros_estado = st.session_state.filtros_aplicados
 df_act = aplicar_filtros_puros(df_clean, filtros_estado)
 st.session_state['df_filtrado'] = df_act
 
@@ -182,12 +123,7 @@ st.session_state['df_filtrado'] = df_act
 # 📈 DASHBOARD ANALÍTICO
 # =============================================
 
-# Segundo botón aplicar — justo encima del dashboard
 st.divider()
-if st.button("✅ Aplicar Filtros", type="primary", key="aplicar_dashboard", use_container_width=False):
-    st.session_state.filtros_aplicados = construir_filtros()
-    st.rerun()
-
 st.subheader("📈 Dashboard Analítico")
 
 if df_act is None or df_act.empty:
@@ -238,7 +174,7 @@ with colA:
             tend = "al alza" if var > 0 else "a la baja" if var < 0 else "estable"
             st.caption(f"💡 *Tendencia general **{tend}** comparando el primer y último periodo visible (*{df_tend.iloc[0][col_x]} - {df_tend.iloc[-1][col_x]}*).*")
 
-# DISTRIBUCIÓN POR SEXO
+# DISTRIBUCIÓN
 with colB:
     st.subheader("Distribución por Sexo")
     col_sex = "Sexo de la victima"
@@ -253,74 +189,7 @@ with colB:
 
 st.divider()
 
-# CASOS POR MES Y DÍA
-colC, colD = st.columns(2)
-
-with colC:
-    st.subheader("Casos por Mes del Año")
-    if "Mes del hecho" in df_act.columns:
-        df_mes = df_act.groupby("Mes del hecho").size().reset_index(name="Casos")
-        chart_mes = alt.Chart(df_mes).mark_bar(color="#9B59B6").encode(
-            x=alt.X("Mes del hecho:N", title="Mes", sort=None),
-            y=alt.Y("Casos:Q"),
-            tooltip=["Mes del hecho", "Casos"]
-        ).properties(height=320)
-        st.altair_chart(chart_mes, use_container_width=True)
-
-with colD:
-    st.subheader("Casos por Día de la Semana")
-    if "Dia del hecho" in df_act.columns:
-        df_dia = df_act.groupby("Dia del hecho").size().reset_index(name="Casos")
-        chart_dia = alt.Chart(df_dia).mark_bar(color="#E74C3C").encode(
-            x=alt.X("Dia del hecho:N", title="Día", sort=None),
-            y=alt.Y("Casos:Q"),
-            tooltip=["Dia del hecho", "Casos"]
-        ).properties(height=320)
-        st.altair_chart(chart_dia, use_container_width=True)
-
-st.divider()
-
-# ESTADO CIVIL Y ESCOLARIDAD
-colE, colF = st.columns(2)
-
-with colE:
-    st.subheader("Casos por Estado Civil")
-    if "Estado Civil" in df_act.columns:
-        df_ec = df_act.groupby("Estado Civil").size().reset_index(name="Casos").sort_values("Casos", ascending=False)
-        chart_ec = alt.Chart(df_ec).mark_bar(color="#1ABC9C").encode(
-            x=alt.X("Casos:Q"),
-            y=alt.Y("Estado Civil:N", sort="-x", title=""),
-            tooltip=["Estado Civil", "Casos"]
-        ).properties(height=320)
-        st.altair_chart(chart_ec, use_container_width=True)
-
-with colF:
-    st.subheader("Casos por Escolaridad")
-    if "Escolaridad" in df_act.columns:
-        df_esc = df_act.groupby("Escolaridad").size().reset_index(name="Casos").sort_values("Casos", ascending=False)
-        chart_esc = alt.Chart(df_esc).mark_bar(color="#F39C12").encode(
-            x=alt.X("Casos:Q"),
-            y=alt.Y("Escolaridad:N", sort="-x", title=""),
-            tooltip=["Escolaridad", "Casos"]
-        ).properties(height=320)
-        st.altair_chart(chart_esc, use_container_width=True)
-
-st.divider()
-
-# ANCESTRO RACIAL
-st.subheader("Casos por Ancestro Racial")
-if "Ancestro Racial" in df_act.columns:
-    df_anc = df_act.groupby("Ancestro Racial").size().reset_index(name="Casos").sort_values("Casos", ascending=False)
-    chart_anc = alt.Chart(df_anc).mark_bar(color="#3498DB").encode(
-        x=alt.X("Casos:Q"),
-        y=alt.Y("Ancestro Racial:N", sort="-x", title=""),
-        tooltip=["Ancestro Racial", "Casos"]
-    ).properties(height=350)
-    st.altair_chart(chart_anc, use_container_width=True)
-
-st.divider()
-
-# DEPARTAMENTOS
+# COMPARACIONES
 st.subheader("Principales Focos de Incidencia (Departamentos)")
 col_dpto = "Departamento del hecho DANE"
 if col_dpto in df_act.columns:
@@ -347,7 +216,7 @@ st.download_button(
 st.divider()
 
 # =============================================
-# 📑 VISTA SEGMENTADA 
+# 📑 VISTA SEGMENTADA (AL FINAL)
 # =============================================
 st.subheader(f"📑 Vista Segmentada (Total Extraído: {df_act.shape[0]})")
 st.dataframe(df_act.head(40), use_container_width=True)

@@ -134,10 +134,10 @@ with col6:
 
 st.divider()
 
-# Botones de acción
+# Botones de acción — primer par (arriba de los filtros)
 btn_col1, btn_col2 = st.columns([1, 5])
 with btn_col1:
-    aplicar = st.button("✅ Aplicar Filtros", type="primary", use_container_width=True)
+    aplicar_top = st.button("✅ Aplicar Filtros", type="primary", key="aplicar_top", use_container_width=True)
 with btn_col2:
     if st.button("🗑️ Limpiar Filtros", use_container_width=True):
         st.session_state.pop("filtros_aplicados", None)
@@ -156,8 +156,8 @@ if "filtros_aplicados" not in st.session_state:
         "estado_civil": [], "escolaridad": [], "ancestro_racial": []
     }
 
-if aplicar:
-    st.session_state.filtros_aplicados = {
+def construir_filtros():
+    return {
         "rango_anios": rango_anos,
         "meses": sel_meses,
         "dias": sel_dias,
@@ -171,6 +171,9 @@ if aplicar:
         "ancestro_racial": sel_ancestro
     }
 
+if aplicar_top:
+    st.session_state.filtros_aplicados = construir_filtros()
+
 filtros_estado = st.session_state.filtros_aplicados
 df_act = aplicar_filtros_puros(df_clean, filtros_estado)
 st.session_state['df_filtrado'] = df_act
@@ -178,6 +181,12 @@ st.session_state['df_filtrado'] = df_act
 # =============================================
 # 📈 DASHBOARD ANALÍTICO
 # =============================================
+
+# Segundo botón aplicar — justo encima del dashboard
+st.divider()
+if st.button("✅ Aplicar Filtros", type="primary", key="aplicar_dashboard", use_container_width=False):
+    st.session_state.filtros_aplicados = construir_filtros()
+    st.rerun()
 
 st.subheader("📈 Dashboard Analítico")
 
@@ -338,7 +347,7 @@ st.download_button(
 st.divider()
 
 # =============================================
-# 📑 VISTA SEGMENTADA (AL FINAL)
+# 📑 VISTA SEGMENTADA 
 # =============================================
 st.subheader(f"📑 Vista Segmentada (Total Extraído: {df_act.shape[0]})")
 st.dataframe(df_act.head(40), use_container_width=True)

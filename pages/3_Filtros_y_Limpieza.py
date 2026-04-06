@@ -15,6 +15,10 @@ st.markdown("""
 Configura un entorno de búsqueda granular. Ajusta los filtros y presiona **Aplicar Filtros** para ver los cambios reflejados en el dashboard. El sistema se encarga internamente de normalizar y pulir las entradas (pipeline de validación).
 """)
 
+# Orden cronológico para meses y días
+ORDEN_MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
+ORDEN_DIAS = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"]
+
 # 🔄 BOTÓN PARA FORZAR RECARGA
 if st.button("🔄 Recargar datos (forzar pipeline)"):
     st.session_state.pop("df_raw", None)
@@ -55,13 +59,15 @@ with col1:
     rango_anos = st.slider("Rango de Años:", min_y, max_y, (min_y, max_y))
 
     if "Mes del hecho" in df_clean.columns:
-        meses_uni = df_clean["Mes del hecho"].dropna().unique().tolist()
+        meses_raw = df_clean["Mes del hecho"].str.strip().str.capitalize().dropna().unique().tolist()
+        meses_uni = [m for m in ORDEN_MESES if m in meses_raw]
         sel_meses = st.multiselect("Meses de Registro:", meses_uni, default=[])
     else:
         sel_meses = []
 
     if "Dia del hecho" in df_clean.columns:
-        dias_uni = df_clean["Dia del hecho"].dropna().unique().tolist()
+        dias_raw = df_clean["Dia del hecho"].str.strip().str.capitalize().dropna().unique().tolist()
+        dias_uni = [d for d in ORDEN_DIAS if d in dias_raw]
         sel_dias = st.multiselect("Día de la Semana:", dias_uni, default=[])
     else:
         sel_dias = []
@@ -156,8 +162,8 @@ if "filtros_aplicados" not in st.session_state:
         "estado_civil": [], "escolaridad": [], "ancestro_racial": []
     }
 
-if aplicar:
-    st.session_state.filtros_aplicados = {
+def construir_filtros():
+    return {
         "rango_anios": rango_anos,
         "meses": sel_meses,
         "dias": sel_dias,
@@ -170,6 +176,9 @@ if aplicar:
         "escolaridad": sel_escolaridad,
         "ancestro_racial": sel_ancestro
     }
+
+if aplicar:
+    st.session_state.filtros_aplicados = construir_filtros()
 
 filtros_estado = st.session_state.filtros_aplicados
 df_act = aplicar_filtros_puros(df_clean, filtros_estado)
@@ -250,9 +259,14 @@ colC, colD = st.columns(2)
 with colC:
     st.subheader("Casos por Mes del Año")
     if "Mes del hecho" in df_act.columns:
-        df_mes = df_act.groupby("Mes del hecho").size().reset_index(name="Casos")
+        df_mes = df_act.copy()
+        df_mes["Mes del hecho"] = df_mes["Mes del hecho"].str.strip().str.capitalize()
+        df_mes = df_mes.groupby("Mes del hecho").size().reset_index(name="Casos")
+        # Ordenar cronológicamente
+        df_mes["Mes del hecho"] = pd.Categorical(df_mes["Mes del hecho"], categories=ORDEN_MESES, ordered=True)
+        df_mes = df_mes.sort_values("Mes del hecho")
         chart_mes = alt.Chart(df_mes).mark_bar(color="#9B59B6").encode(
-            x=alt.X("Mes del hecho:N", title="Mes", sort=None),
+            x=alt.X("Mes del hecho:N", title="Mes", sort=ORDEN_MESES),
             y=alt.Y("Casos:Q"),
             tooltip=["Mes del hecho", "Casos"]
         ).properties(height=320)
@@ -261,9 +275,14 @@ with colC:
 with colD:
     st.subheader("Casos por Día de la Semana")
     if "Dia del hecho" in df_act.columns:
-        df_dia = df_act.groupby("Dia del hecho").size().reset_index(name="Casos")
+        df_dia = df_act.copy()
+        df_dia["Dia del hecho"] = df_dia["Dia del hecho"].str.strip().str.capitalize()
+        df_dia = df_dia.groupby("Dia del hecho").size().reset_index(name="Casos")
+        # Ordenar cronológicamente
+        df_dia["Dia del hecho"] = pd.Categorical(df_dia["Dia del hecho"], categories=ORDEN_DIAS, ordered=True)
+        df_dia = df_dia.sort_values("Dia del hecho")
         chart_dia = alt.Chart(df_dia).mark_bar(color="#E74C3C").encode(
-            x=alt.X("Dia del hecho:N", title="Día", sort=None),
+            x=alt.X("Dia del hecho:N", title="Día", sort=ORDEN_DIAS),
             y=alt.Y("Casos:Q"),
             tooltip=["Dia del hecho", "Casos"]
         ).properties(height=320)
@@ -338,7 +357,7 @@ st.download_button(
 st.divider()
 
 # =============================================
-# 📑 VISTA SEGMENTADA 
+# 📑 VISTA SEGMENTADA
 # =============================================
 st.subheader(f"📑 Vista Segmentada (Total Extraído: {df_act.shape[0]})")
 st.dataframe(df_act.head(40), use_container_width=True)
